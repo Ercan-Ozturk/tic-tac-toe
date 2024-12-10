@@ -3,26 +3,37 @@ import { combine } from "zustand/middleware";
 import { useShallow } from "zustand/shallow";
 
 const useGameStore = create(
-  combine({ squares: Array(9).fill(null), xIsNext: true }, (set) => {
-    return {
-      setSquares: (nextSquares) => {
-        set((state) => ({
-          squares:
-            typeof nextSquares === "function"
-              ? nextSquares(state.squares)
-              : nextSquares,
-        }));
-      },
-      setXIsNext: (nextXIsNext) => {
-        set((state) => ({
-          xIsNext:
-            typeof nextXIsNext === "function"
-              ? nextXIsNext(state.xIsNext)
-              : nextXIsNext,
-        }));
-      },
-    };
-  })
+  combine(
+    { history: [Array(9).fill(null)], currentMove: 0, xIsNext: true },
+    (set) => {
+      return {
+        setHistory: (nextHistory) => {
+          set((state) => ({
+            history:
+              typeof nextHistory === "function"
+                ? nextHistory(state.history)
+                : nextHistory,
+          }));
+        },
+        setCurrentMove: (nextCurrentMove) => {
+          set((state) => ({
+            currentMove:
+              typeof nextCurrentMove === "function"
+                ? nextCurrentMove(state.currentMove)
+                : nextCurrentMove,
+          }));
+        },
+        setXIsNext: (nextXIsNext) => {
+          set((state) => ({
+            xIsNext:
+              typeof nextXIsNext === "function"
+                ? nextXIsNext(state.xIsNext)
+                : nextXIsNext,
+          }));
+        },
+      };
+    }
+  )
 );
 
 function Square({ value, onSquareClick }) {
@@ -78,13 +89,7 @@ function calculateStatus(winner, turns, player) {
   return `Next player: ${player}`;
 }
 
-export default function Board() {
-  const [xIsNext, setXIsNext] = useGameStore(
-    useShallow((state) => [state.xIsNext, state.setXIsNext])
-  );
-  const [squares, setSquares] = useGameStore(
-    useShallow((state) => [state.squares, state.setSquares])
-  );
+function Board({ xIsNext, squares, onPlay }) {
   const winner = calculateWinner(squares);
   const turns = calculateTurns(squares);
   const player = xIsNext ? "X" : "O";
@@ -94,12 +99,11 @@ export default function Board() {
     if (squares[i] || winner) return;
     const nextSquares = squares.slice();
     nextSquares[i] = player;
-    setSquares(nextSquares);
-    setXIsNext(!xIsNext);
+    onPlay(nextSquares);
   }
+
   return (
     <>
-      {" "}
       <div style={{ marginBottom: "0.5rem" }}>{status}</div>
       <div
         style={{
@@ -120,5 +124,53 @@ export default function Board() {
         ))}
       </div>
     </>
+  );
+}
+
+export default function Game() {
+  const { history, setHistory, currentMove, setCurrentMove } = useGameStore();
+  const xIsNext = currentMove % 2 === 0;
+  const currentSquares = history[currentMove];
+
+  function handlePlay(nextSquares) {
+    const nextHistory = history.slice(0, currentMove + 1).concat([nextSquares]);
+    setHistory(nextHistory);
+    setCurrentMove(nextHistory.length - 1);
+  }
+
+  function jumpTo(nextMove) {
+    setCurrentMove(nextMove);
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        fontFamily: "monospace",
+      }}
+    >
+      <div>
+        <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay} />
+      </div>
+      <div style={{ marginLeft: "1rem" }}>
+        <ol>
+          {" "}
+          {history.map((_, historyIndex) => {
+            const description =
+              historyIndex > 0
+                ? `Go to move #${historyIndex}`
+                : "Go to game start";
+
+            return (
+              <li key={historyIndex}>
+                <button onClick={() => jumpTo(historyIndex)}>
+                  {description}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </div>
   );
 }
